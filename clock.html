@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Interactive Calendar + Analog Clock</title>
+<style>
+  :root{
+    --bg1:#a1c4fd; --bg2:#c2e9fb;
+    --panel-bg: rgba(255,255,255,0.95);
+    --accent: #007bff;
+    --hour-color: #0b5ed7;
+    --minute-color: #1f6f3a;
+    --second-color: #e02121;
+  }
+
+  body{
+    margin:0;
+    height:100vh;
+    font-family:Arial, Helvetica, sans-serif;
+    background: linear-gradient(to bottom,var(--bg1),var(--bg2));
+    display:flex;
+    justify-content:center;
+    align-items:center;
+  }
+
+  .container{
+    display:flex;
+    align-items:center;
+    justify-content:space-around;
+    width:92%;
+    max-width:1100px;
+  }
+
+  /* LEFT: digital + interactive calendar */
+  .digital-container{
+    text-align:center;
+    background:var(--panel-bg);
+    padding:18px;
+    border-radius:12px;
+    box-shadow:0 10px 24px rgba(0,0,0,0.14);
+    width:320px;
+  }
+  #time{ font-size:36px; font-weight:800; color:#222; letter-spacing:1px; }
+  #date{ font-size:15px; color:#444; margin:6px 0 12px; }
+
+  /* controls: prev / month / year / next */
+  .cal-controls{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    justify-content:center;
+    margin-bottom:8px;
+  }
+  .cal-controls button{
+    background:#fff;
+    border:1px solid #ccc;
+    padding:6px 8px;
+    border-radius:6px;
+    cursor:pointer;
+  }
+  .cal-controls select{
+    padding:6px 8px;
+    border-radius:6px;
+    border:1px solid #ccc;
+    background:#fff;
+    cursor:pointer;
+  }
+
+  #calendar table{ border-collapse:collapse; width:100%; font-size:14px; }
+  #calendar th,#calendar td{ border:1px solid #ddd; padding:6px; text-align:center; min-width:30px; }
+  #calendar th{ background:#f7f7f7; font-weight:700; }
+  #calendar td.today{ background:var(--accent); color:#fff; font-weight:800; border-radius:4px; }
+  #calendar td.selected{ outline:3px solid rgba(0,123,255,0.25); background:rgba(0,123,255,0.08); font-weight:700; border-radius:4px; }
+
+  /* RIGHT: analog clock */
+  .analog-container{ width:360px; height:360px; display:flex; align-items:center; justify-content:center; }
+  .clock-face{
+    width:300px; height:300px; border-radius:50%; background:#fff; border:8px solid #333; position:relative;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+  }
+
+  .hand{ position:absolute; left:50%; top:50%; transform-origin:0% 50%; transition: transform 0.08s cubic-bezier(.4,2.3,.3,1); border-radius:3px; }
+  .hand.hour{ height:8px; width:35%; background:black; }
+  .hand.minute{ height:6px; width:45%; background:blue; }
+  .hand.second{ height:3px; width:45%; background:red; }
+  .center-cap{ position:absolute; left:50%; top:50%; width:12px; height:12px; background:#333; border-radius:50%; transform:translate(-50%,-50%); z-index:10; }
+
+  .number{ position:absolute; font-weight:700; font-size:16px; transform:translate(-50%,-50%); user-select:none; pointer-events:none; }
+
+  /* small ticks */
+  .tick{ position:absolute; left:50%; top:50%; width:2px; height:10px; background:#444; transform-origin:50% 120%; }
+  @media (max-width:900px){
+    .container{ flex-direction:column; gap:18px; }
+    .analog-container{ transform:scale(0.9); }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- LEFT: Digital + interactive calendar -->
+  <div class="digital-container">
+    <div id="time">00:00:00</div>
+    <div id="date">Loading date...</div>
+
+    <div class="cal-controls" aria-hidden="false">
+      <button id="prevBtn" title="Previous month">&lt;</button>
+
+      <select id="monthSelect" aria-label="Select month"></select>
+      <select id="yearSelect" aria-label="Select year"></select>
+
+      <button id="nextBtn" title="Next month">&gt;</button>
+    </div>
+
+    <div id="calendar" aria-live="polite"></div>
+    <div style="margin-top:8px; font-size:13px; color:#666;">Click a date to select it</div>
+  </div>
+
+  <!-- RIGHT: Analog -->
+  <div class="analog-container">
+    <div class="clock-face" id="analogClock" role="img" aria-label="Analog clock">
+      <div class="hand hour" id="hourHand"></div>
+      <div class="hand minute" id="minuteHand"></div>
+      <div class="hand second" id="secondHand"></div>
+      <div class="center-cap"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ------------------- STATE -------------------
+  const now = new Date();
+  let viewYear = now.getFullYear();
+  let viewMonth = now.getMonth(); // 0-11
+  let selectedDate = { year: now.getFullYear(), month: now.getMonth(), day: now.getDate() };
+
+  const monthNames = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December"
+  ];
+
+  // DOM refs
+  const timeEl = document.getElementById('time');
+  const dateEl = document.getElementById('date');
+  const calendarEl = document.getElementById('calendar');
+  const monthSelect = document.getElementById('monthSelect');
+  const yearSelect = document.getElementById('yearSelect');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+
+  // populate month and year selects
+  function populateControls(){
+    monthSelect.innerHTML = monthNames.map((m, i) => `<option value="${i}">${m}</option>`).join('');
+    // years range e.g., now-10 .. now+10
+    const start = now.getFullYear() - 10;
+    const end = now.getFullYear() + 10;
+    let years = '';
+    for(let y = start; y <= end; y++){ years += `<option value="${y}">${y}</option>`; }
+    yearSelect.innerHTML = years;
+  }
+
+  populateControls();
+
+  // set selects to current view
+  function setControls(){
+    monthSelect.value = String(viewMonth);
+    yearSelect.value = String(viewYear);
+  }
+
+  // ------------------- CALENDAR RENDER -------------------
+  function buildCalendar(year, month){
+    // month: 0-11
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    let html = `<table><thead><tr><th>Su</th><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th></tr></thead><tbody><tr>`;
+
+    for(let i=0;i<firstDay;i++) html += '<td></td>';
+
+    for(let d=1; d<=daysInMonth; d++){
+      const isToday = (year===now.getFullYear() && month===now.getMonth() && d===now.getDate());
+      const isSelected = (year===selectedDate.year && month===selectedDate.month && d===selectedDate.day);
+      const classes = isSelected ? 'selected' : (isToday ? 'today' : '');
+      html += `<td class="${classes}" data-day="${d}" role="button" tabindex="0">${d}</td>`;
+      if((d + firstDay) % 7 === 0) html += '</tr><tr>';
+    }
+    html += '</tr></tbody></table>';
+
+    calendarEl.innerHTML = html;
+
+    // attach click handlers to days
+    const dayCells = calendarEl.querySelectorAll('td[data-day]');
+    dayCells.forEach(cell => {
+      cell.addEventListener('click', onDateClick);
+      cell.addEventListener('keydown', (e) => { if(e.key === 'Enter' || e.key === ' ') onDateClick(e); });
+    });
+  }
+
+  function onDateClick(e){
+    const day = parseInt(e.currentTarget.getAttribute('data-day'), 10);
+    selectedDate = { year: viewYear, month: viewMonth, day };
+    // update the full date display (digital)
+    const f = new Date(selectedDate.year, selectedDate.month, selectedDate.day);
+    dateEl.textContent = f.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    buildCalendar(viewYear, viewMonth); // re-render to show selection highlight
+  }
+
+  // ------------------- CONTROL EVENTS -------------------
+  prevBtn.addEventListener('click', () => {
+    viewMonth--;
+    if(viewMonth < 0){ viewMonth = 11; viewYear--; }
+    setControls();
+    buildCalendar(viewYear, viewMonth);
+  });
+
+  nextBtn.addEventListener('click', () => {
+    viewMonth++;
+    if(viewMonth > 11){ viewMonth = 0; viewYear++; }
+    setControls();
+    buildCalendar(viewYear, viewMonth);
+  });
+
+  monthSelect.addEventListener('change', (e) => {
+    viewMonth = parseInt(e.target.value, 10);
+    buildCalendar(viewYear, viewMonth);
+  });
+  yearSelect.addEventListener('change', (e) => {
+    viewYear = parseInt(e.target.value, 10);
+    buildCalendar(viewYear, viewMonth);
+  });
+
+  // ------------------- DIGITAL CLOCK -------------------
+  function updateDigitalClock(){
+    const t = new Date();
+    const hh = String(t.getHours()).padStart(2,'0'),
+          mm = String(t.getMinutes()).padStart(2,'0'),
+          ss = String(t.getSeconds()).padStart(2,'0');
+    timeEl.textContent = `${hh}:${mm}:${ss}`;
+
+    // If no manual selection was made, keep date display showing today
+    if(!(selectedDate.year !== now.getFullYear() || selectedDate.month !== now.getMonth() || selectedDate.day !== now.getDate())){
+      dateEl.textContent = t.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    }
+  }
+
+  // ------------------- ANALOG CLOCK -------------------
+  const hourHand = document.getElementById('hourHand');
+  const minuteHand = document.getElementById('minuteHand');
+  const secondHand = document.getElementById('secondHand');
+  const face = document.getElementById('analogClock');
+
+  function updateAnalog(){
+    const t = new Date();
+    const h = t.getHours() % 12;
+    const m = t.getMinutes();
+    const s = t.getSeconds();
+
+    const hourAngle = (h + m/60) * 30;
+    const minuteAngle = (m + s/60) * 6;
+    const secondAngle = s * 6;
+
+    hourHand.style.transform = `translateY(-50%) rotate(${hourAngle - 90}deg)`;
+    minuteHand.style.transform = `translateY(-50%) rotate(${minuteAngle - 90}deg)`;
+    secondHand.style.transform = `translateY(-50%) rotate(${secondAngle - 90}deg)`;
+  }
+
+  // draw numbers and ticks
+  (function drawDial(){
+    const R = 100, cx = 150, cy = 150; // clock-face is 300px
+    for(let n=1; n<=12; n++){
+      const ang = (n * 30) * Math.PI / 180;
+      const x = cx + R * Math.sin(ang);
+      const y = cy - R * Math.cos(ang);
+      const el = document.createElement('div');
+      el.className = 'number';
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.textContent = n;
+      face.appendChild(el);
+    }
+    // ticks
+    for(let i=0;i<60;i++){
+      const ang = i * 6 * Math.PI / 180;
+      const R1 = 126, x = cx + R1 * Math.sin(ang), y = cy - R1 * Math.cos(ang);
+      const t = document.createElement('div');
+      t.className = 'tick';
+      t.style.left = x + 'px';
+      t.style.top  = y + 'px';
+      // make hour ticks longer
+      if(i % 5 === 0){
+        t.style.height = '14px';
+      } else {
+        t.style.height = '8px';
+        t.style.opacity = '0.6';
+      }
+      t.style.transform = `translate(-50%,-100%) rotate(${i*6}deg)`;
+      face.appendChild(t);
+    }
+  })();
+
+  // ------------------- INITIALIZE -------------------
+  function init(){
+    // set initial selectedDate to today
+    selectedDate = { year: now.getFullYear(), month: now.getMonth(), day: now.getDate() };
+    viewYear = selectedDate.year; viewMonth = selectedDate.month;
+
+    setControls();
+    buildCalendar(viewYear, viewMonth);
+    updateDigitalClock();
+    updateAnalog();
+
+    setInterval(updateDigitalClock, 1000);
+    setInterval(updateAnalog, 1000);
+  }
+
+  init();
+
+  // ------------------- OPTIONAL: public API to change hand colors -------------------
+  // Example: call setHandColors('#111','#2a9d8f','#e63946') in console to change colors
+  window.setHandColors = (hourCol, minuteCol, secondCol) => {
+    document.documentElement.style.setProperty('--hour-color', hourCol || getComputedStyle(document.documentElement).getPropertyValue('--hour-color'));
+    document.documentElement.style.setProperty('--minute-color', minuteCol || getComputedStyle(document.documentElement).getPropertyValue('--minute-color'));
+    document.documentElement.style.setProperty('--second-color', secondCol || getComputedStyle(document.documentElement).getPropertyValue('--second-color'));
+  };
+</script>
+
+
+
+</body>
+</html>

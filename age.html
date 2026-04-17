@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Age Calculator</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body{
+      margin:0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(to bottom, #FFD3A5, #FD6585);
+      min-height:100vh;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      padding:20px;
+      box-sizing:border-box;
+    }
+
+    .age-card{
+      width:100%;
+      max-width:420px;
+      background: rgba(255,255,255,0.9);
+      padding:22px;
+      border-radius:14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      text-align:center;
+    }
+
+    h1{ margin:0 0 14px; font-size:24px; color:#333; }
+    label{ display:block; text-align:left; margin:8px 0 6px; color:#444; }
+    input[type="date"]{
+      width:100%;
+      padding:10px 12px;
+      font-size:16px;
+      border-radius:8px;
+      border:1px solid #ddd;
+      box-sizing:border-box;
+    }
+
+    .controls{
+      margin-top:12px;
+      display:flex;
+      gap:10px;
+      justify-content:center;
+      flex-wrap:wrap;
+    }
+
+    .controls button{
+      padding:10px 16px;
+      border:none;
+      border-radius:8px;
+      cursor:pointer;
+      font-weight:600;
+    }
+
+    .calc-btn{ background:#007BFF; color:white; }
+    .clear-btn{ background:#ff6b6b; color:white; }
+
+    .result{
+      margin-top:18px;
+      text-align:left;
+      background:#fff;
+      padding:14px;
+      border-radius:10px;
+      border:1px solid #eee;
+    }
+
+    .result p{ margin:8px 0; color:#222; font-size:16px; }
+    .small { color:#666; font-size:13px; margin-top:6px; }
+
+    /* responsive */
+    @media (max-width:420px){
+      .age-card{ padding:16px; }
+      h1{ font-size:20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="age-card" role="main">
+    <h1>Age Calculator</h1>
+
+    <label for="birthdate">Enter your birthdate</label>
+    <input id="birthdate" type="date" max="" />
+
+    <div class="controls">
+      <button class="calc-btn" id="calcBtn">Calculate</button>
+      <button class="clear-btn" id="clearBtn">Clear</button>
+    </div>
+
+    <div class="result" id="resultArea" aria-live="polite" hidden>
+      <p id="ageText"></p>
+      <p id="daysText"></p>
+      <p id="nextBdayText"></p>
+      <p class="small">Tip: You can change the date and click Calculate again.</p>
+    </div>
+  </div>
+
+  <script>
+    // set max date for input to today
+    const birthInput = document.getElementById('birthdate');
+    const today = new Date();
+    birthInput.max = today.toISOString().split('T')[0];
+
+    const calcBtn = document.getElementById('calcBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const resultArea = document.getElementById('resultArea');
+    const ageText = document.getElementById('ageText');
+    const daysText = document.getElementById('daysText');
+    const nextBdayText = document.getElementById('nextBdayText');
+
+    function daysInMonth(year, monthIndex){
+      // monthIndex: 0 = Jan, 11 = Dec
+      return new Date(year, monthIndex + 1, 0).getDate();
+    }
+
+    function calculateAge(birthDate){
+      const now = new Date();
+      let by = birthDate.getFullYear();
+      let bm = birthDate.getMonth();
+      let bd = birthDate.getDate();
+
+      let y = now.getFullYear() - by;
+      let m = now.getMonth() - bm;
+      let d = now.getDate() - bd;
+
+      if (d < 0) {
+        // borrow days from previous month
+        const prevMonth = new Date(now.getFullYear(), now.getMonth(), 0); // last day of prev month
+        d += prevMonth.getDate();
+        m -= 1;
+      }
+      if (m < 0) {
+        m += 12;
+        y -= 1;
+      }
+
+      return { years: y, months: m, days: d };
+    }
+
+    function daysBetween(a, b){
+      // returns whole days between date a and b (b - a)
+      const utc1 = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+      const utc2 = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+      return Math.floor((utc2 - utc1) / (1000 * 60 * 60 * 24));
+    }
+
+    function nextBirthdayInfo(birthDate){
+      const now = new Date();
+      let next = new Date(now.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+      if (next < now || (next.getFullYear() === now.getFullYear() && next.getDate() === now.getDate() && next.getMonth() === now.getMonth() && now.getHours()>23)) {
+        next = new Date(now.getFullYear() + 1, birthDate.getMonth(), birthDate.getDate());
+      }
+      const daysUntil = daysBetween(new Date(now.getFullYear(), now.getMonth(), now.getDate()), new Date(next.getFullYear(), next.getMonth(), next.getDate()));
+      return { nextDate: next, daysUntil };
+    }
+
+    function parseInputDate(value){
+      // value e.g. "2005-06-12"
+      const parts = value.split('-').map(Number);
+      return new Date(parts[0], parts[1] - 1, parts[2]);
+    }
+
+    calcBtn.addEventListener('click', () => {
+      const val = birthInput.value;
+      if (!val) {
+        alert('Please choose your birthdate first.');
+        return;
+      }
+      const bdate = parseInputDate(val);
+      if (bdate > new Date()) {
+        alert('Birthdate cannot be in the future.');
+        return;
+      }
+
+      const age = calculateAge(bdate);
+      const livedDays = daysBetween(bdate, new Date());
+      const nb = nextBirthdayInfo(bdate);
+
+      ageText.textContent = `You are ${age.years} year(s), ${age.months} month(s), and ${age.days} day(s) old.`;
+      daysText.textContent = `Total days lived: ${livedDays.toLocaleString()}.`;
+      nextBdayText.textContent = `Next birthday: ${nb.nextDate.toDateString()} (in ${nb.daysUntil} day(s)).`;
+
+      resultArea.hidden = false;
+    });
+
+    clearBtn.addEventListener('click', () => {
+      birthInput.value = '';
+      resultArea.hidden = true;
+    });
+  </script>
+
+
+
+
+</body>
+</html>

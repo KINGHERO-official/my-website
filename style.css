@@ -1,0 +1,187 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+
+  /* Vertical gradient from top (light blue) to bottom (light green) */
+  background: linear-gradient(to bottom, #ADD8E6, #90EE90);
+
+  /* Make gradient cover full page */
+  min-height: 100vh;
+}
+
+.baack{
+  padding: 15px;
+  font-size: 18px;
+  border: 1px;
+  border-radius: 10px;
+  cursor: pointer;
+  background-color: #d66b84; /* Blue */
+  color: black;
+  transition: background 0.2s;
+  position: sticky; /* or absolute, fixed, sticky */
+  top: 10px;
+  left: 20px;
+  
+}
+
+.baack:hover {
+  background-color: #ad2b4a; /* Darker blue on hover */
+}
+
+
+.tool-btn {
+  padding: 15px;
+  font-size: 18px;
+  border: 4px;
+  border-radius: 10px;
+  cursor: pointer;
+  background-color: #93ff6b; /* Blue */
+  color: black;
+  transition: background 0.2s;
+}
+
+.tool-btn:hover {
+  background-color: #f0e659; /* Darker blue on hover */
+}
+
+
+.gradient-text {
+  background: linear-gradient(to right, black, white); /* gradient from blue → green */
+  -webkit-background-clip: text; /* for Chrome/Safari */
+  -webkit-text-fill-color: transparent; /* makes the text show gradient */
+  font-size: 50px; /* optional: make it bigger */
+  text-align: center; /* optional: center on page */
+}
+
+.Line {
+  background: linear-gradient(to right, #00f2ff, #ff0000); /* gradient from blue → green */
+  -webkit-background-clip: text; /* for Chrome/Safari */
+  -webkit-text-fill-color: transparent; /* makes the text show gradient */
+  font-size: 25px; /* optional: make it bigger */
+  text-align: center; /* optional: center on page */
+}
+
+
+
+
+/* Calculator Section */
+#calculator {
+  background: linear-gradient(to bottom, #FFDEE9, #B5FFFC);
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+.calc-container {
+  background: rgba(255, 255, 255, 0.3);
+  padding: 20px;
+  border-radius: 15px;
+  width: fit-content;
+  margin: 0 auto;
+}
+
+#calc-display {
+  width: 100%;
+  padding: 2px;
+  font-size: 24px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  border: none;
+  text-align: right;
+  color: #003366;
+  height: 40px;
+}
+
+.buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 60px);
+  gap: 10px;
+}
+
+button {
+  padding: 15px;
+  font-size: 18px;
+  border:none ;
+  border-radius: 10px;
+  cursor: pointer;
+  background-color: #ffffff;
+  transition: background 0.2s;
+}
+
+button:hover {
+  background-color: rgba(255,255,255,0.9);
+}
+
+button.clear {
+  grid-column: span 1;
+  background-color: #ff6b6b;
+  color: white;
+}
+
+button.equal {
+  grid-column: span 4;
+  background-color: #039dfc;
+  color: black;
+}
+
+
+
+/* To-Do List Section */
+#todo {
+  background: linear-gradient(to bottom, #C6FFDD, #FBD786);
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+/* Clock Section */
+#clock {
+  background: linear-gradient(to bottom, #FFA69E, #861657);
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+/* Quote Section */
+#quote {
+  background: linear-gradient(to bottom, #89F7FE, #66A6FF);
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+/* Age Calculator Section */
+#age {
+  background: linear-gradient(to bottom, #FFD3A5, #FD6585);
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+/* Notes Section */
+#notes {
+  background: linear-gradient(to bottom, #FEE140, #FA709A);
+  padding: 20px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+#quoteBox {
+  background: rgba(0,0,0,0.8); /* semi-transparent box */
+  padding: 20px;
+  border-radius: 15px;
+  text-align: center;
+  color: white;
+}
+
+#quote button {
+  margin-top: 20px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  background-color: lightblue;
+  color: black;
+  font-weight: bold;
+}
+

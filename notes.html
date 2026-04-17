@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Notes</title>
+<style>
+  :root{ --bg: linear-gradient(to bottom,#FEE140,#FA709A); --card: rgba(255,255,255,0.3); }
+  body{ margin:0; font-family: Arial, sans-serif; min-height:100vh; background:var(--bg); display:flex; justify-content:center; padding:24px; box-sizing:border-box;}
+  .wrap{ width:100%; max-width:980px; display:grid; grid-template-columns: 360px 1fr; gap:18px; align-items:start; }
+  .panel{ background:var(--card); padding:14px; border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,0.16); }
+  h1{ margin:0 0 12px; font-size:20px; text-align:center; }
+  /* left column - controls & list */
+  .controls{ display:flex; gap:8px; margin-bottom:12px; }
+  input[type="text"], textarea, select{ width:100%; box-sizing:border-box; padding:8px 10px; font-size:14px; border-radius:8px; border:1px solid #ooo; }
+  .notes-list{ max-height:64vh; overflow:auto; margin-top:8px; display:flex; flex-direction:column; gap:8px;  }
+  .note-item{ padding:10px; border-radius:8px; background:#12fce9; display:flex; gap:8px; align-items:flex-start; justify-content:space-between; border:1px solid #eee; cursor:pointer; }
+  .note-item .meta{ flex:1; }
+  .note-item h3{ margin:0 0 6px; font-size:14px; color:#222; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .note-item p{ margin:0; font-size:13px; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .note-actions{ display:flex; gap:6px; }
+  button{ padding:8px 10px; border-radius:8px; border:none; cursor:pointer; background:#007bff; color:white; font-weight:600; }
+  button.ghost{ background:#a8e6b2; color:#333; border:1px solid #ddd; font-weight:500; padding:6px 8px; }
+  button.warn{ background:#ff6b6b; }
+  .pin{ background:#ffe600; color:#333; border-radius:6px; padding:4px 6px; font-size:12px; }
+  /* right column - editor */
+  .editor h2{ margin-top:0; font-size:18px; }
+  .editor .row{ display:flex; gap:8px; margin-bottom:8px; }
+  textarea{ min-height:300px; resize:vertical; }
+  .small{ font-size:13px; color:#555; margin-top:8px; }
+  .bottom-row{ display:flex; gap:8px; justify-content:flex-end; margin-top:8px; }
+  .hidden{ display:none; }
+  @media (max-width:900px){
+    .wrap{ grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+
+
+  <div class="wrap">
+    <!-- LEFT: list + controls -->
+    <div class="panel">
+      <h1>Notes</h1>
+
+      <div class="controls">
+        <input id="search" type="text" placeholder="Search notes..." />
+        <button id="newBtn" class="ghost">New</button>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-bottom:8px;">
+        <button id="exportAll" class="ghost">Export All</button>
+        <input id="importFile" type="file" accept=".json" style="display:none" />
+        <button id="importBtn" class="ghost">Import</button>
+      </div>
+
+      <div class="notes-list" id="notesList" aria-live="polite"></div>
+    </div>
+
+    <!-- RIGHT: editor -->
+    <div class="panel editor">
+      <h2 id="editorTitle">Create / Edit Note</h2>
+
+      <div class="row">
+        <input id="noteTitle" type="text" placeholder="Note title..." />
+        <select id="tagSelect" title="Tag">
+          <option value="">No tag</option>
+          <option value="personal">Personal</option>
+          <option value="work">Work</option>
+          <option value="ideas">Ideas</option>
+        </select>
+      </div>
+
+      <textarea id="noteBody" placeholder="Write your note here..."></textarea>
+
+      <div class="small">Tip: notes are saved to your browser automatically. You can export or import notes.</div>
+
+      <div class="bottom-row">
+        <button id="pinBtn" class="ghost">Pin</button>
+        <button id="saveBtn">Save</button>
+        <button id="deleteBtn" class="warn">Delete</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* Simple notes app using localStorage */
+const LS_KEY = 'my_notes_v1';
+let notes = [];            // {id,title,body,tag,pinned,updated}
+let currentId = null;      // id of note being edited
+
+// DOM refs
+const notesList = document.getElementById('notesList');
+const newBtn = document.getElementById('newBtn');
+const saveBtn = document.getElementById('saveBtn');
+const deleteBtn = document.getElementById('deleteBtn');
+const pinBtn = document.getElementById('pinBtn');
+const noteTitle = document.getElementById('noteTitle');
+const noteBody = document.getElementById('noteBody');
+const search = document.getElementById('search');
+const editorTitle = document.getElementById('editorTitle');
+const importBtn = document.getElementById('importBtn');
+const importFile = document.getElementById('importFile');
+const exportAll = document.getElementById('exportAll');
+const tagSelect = document.getElementById('tagSelect');
+
+// load notes from localStorage
+function loadNotes(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    notes = raw ? JSON.parse(raw) : [];
+  }catch(e){ notes = []; }
+}
+
+// save notes to localStorage
+function saveNotes(){
+  localStorage.setItem(LS_KEY, JSON.stringify(notes));
+}
+
+// utility: create id
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+// render list with search filter, pinned first
+function renderList(){
+  const q = search.value.trim().toLowerCase();
+  // pinned first, then by updated desc
+  const sorted = [...notes].sort((a,b)=>{
+    if (a.pinned && !b.pinned) return -1;
+    if (!a.pinned && b.pinned) return 1;
+    return (b.updated || 0) - (a.updated || 0);
+  });
+  notesList.innerHTML = '';
+  if (sorted.length === 0) {
+    notesList.innerHTML = '<div style="color:#666;padding:8px">No notes yet — click New to create one.</div>';
+    return;
+  }
+  sorted.forEach(n=>{
+    const hay = (n.title + ' ' + n.body + ' ' + (n.tag||'')).toLowerCase();
+    if (q && !hay.includes(q)) return;
+    const div = document.createElement('div');
+    div.className = 'note-item';
+    div.dataset.id = n.id;
+    div.innerHTML = `
+      <div class="meta">
+        <h3>${escapeHtml(n.title || '(Untitled)')}</h3>
+        <p>${escapeHtml(trimText(n.body, 80))}</p>
+      </div>
+      <div class="note-actions">
+        ${n.pinned ? '<span class="pin">PIN</span>' : ''}
+        <button class="ghost" data-action="open">Open</button>
+      </div>`;
+    notesList.appendChild(div);
+  });
+}
+
+// helpers
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function trimText(s, l){ if(!s) return ''; return s.length>l ? s.slice(0,l-1)+'…' : s; }
+
+// open note into editor
+function openNote(id){
+  const n = notes.find(x=>x.id===id);
+  if(!n) return;
+  currentId = id;
+  noteTitle.value = n.title || '';
+  noteBody.value = n.body || '';
+  tagSelect.value = n.tag || '';
+  pinBtn.textContent = n.pinned ? 'Unpin' : 'Pin';
+  editorTitle.textContent = 'Edit Note';
+}
+
+// clear editor for new note
+function newNote(){
+  currentId = null;
+  noteTitle.value = '';
+  noteBody.value = '';
+  tagSelect.value = '';
+  pinBtn.textContent = 'Pin';
+  editorTitle.textContent = 'Create Note';
+  noteTitle.focus();
+}
+
+// save or create note
+function saveCurrent(){
+  const t = noteTitle.value.trim();
+  const b = noteBody.value.trim();
+  const tag = tagSelect.value;
+  if(!t && !b){ alert('Write a title or some content first.'); return; }
+
+  if(currentId){
+    const n = notes.find(x=>x.id===currentId);
+    if(n){
+      n.title = t;
+      n.body = b;
+      n.tag = tag;
+      n.updated = Date.now();
+    }
+  } else {
+    const n = { id: uid(), title: t, body: b, tag: tag, pinned: false, updated: Date.now() };
+    notes.push(n);
+    currentId = n.id;
+  }
+  saveNotes(); renderList();
+  alert('Saved');
+}
+
+// delete current
+function deleteCurrent(){
+  if(!currentId){ alert('No note selected'); return; }
+  if(!confirm('Delete this note?')) return;
+  notes = notes.filter(x=>x.id!==currentId);
+  saveNotes(); renderList(); newNote();
+}
+
+// toggle pin
+function togglePin(){
+  if(!currentId){ alert('Open a note to pin/unpin'); return; }
+  const n = notes.find(x=>x.id===currentId);
+  n.pinned = !n.pinned;
+  saveNotes(); renderList();
+  pinBtn.textContent = n.pinned ? 'Unpin' : 'Pin';
+}
+
+// export all notes as JSON file
+function exportAllNotes(){
+  const data = JSON.stringify(notes, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'notes_export.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// import notes from JSON (merge)
+function importNotesFile(file){
+  const reader = new FileReader();
+  reader.onload = e=>{
+    try{
+      const arr = JSON.parse(e.target.result);
+      if(!Array.isArray(arr)) throw new Error('Invalid file format');
+      // assign new ids if collision
+      arr.forEach(n=>{
+        if(!n.id) n.id = uid();
+        // basic shape normalization
+        n.title = n.title || '';
+        n.body = n.body || '';
+        n.tag = n.tag || '';
+        n.pinned = !!n.pinned;
+        n.updated = n.updated || Date.now();
+      });
+      notes = notes.concat(arr);
+      saveNotes(); renderList();
+      alert('Imported ' + arr.length + ' notes');
+    }catch(err){
+      alert('Import failed: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// autosave draft (optional): store draft in session
+let autosaveTimer = null;
+function scheduleAutosave(){
+  if(autosaveTimer) clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(()=>{
+    // if editing an existing note, update live
+    if(currentId){
+      const n = notes.find(x=>x.id===currentId);
+      if(n){
+        n.title = noteTitle.value;
+        n.body = noteBody.value;
+        n.tag = tagSelect.value;
+        n.updated = Date.now();
+        saveNotes(); renderList();
+      }
+    }
+  }, 1200);
+}
+
+// events
+notesList.addEventListener('click', e=>{
+  const item = e.target.closest('.note-item');
+  if(!item) return;
+  const id = item.dataset.id;
+  const action = e.target.dataset.action;
+  if(action === 'open'){ openNote(id); }
+  else openNote(id);
+});
+
+newBtn.addEventListener('click', newNote);
+saveBtn.addEventListener('click', saveCurrent);
+deleteBtn.addEventListener('click', deleteCurrent);
+pinBtn.addEventListener('click', togglePin);
+search.addEventListener('input', renderList);
+exportAll.addEventListener('click', exportAllNotes);
+importBtn.addEventListener('click', ()=> importFile.click());
+importFile.addEventListener('change', ()=> {
+  if(importFile.files && importFile.files[0]) importNotesFile(importFile.files[0]);
+});
+noteTitle.addEventListener('input', scheduleAutosave);
+noteBody.addEventListener('input', scheduleAutosave);
+
+// init
+loadNotes();
+renderList();
+newNote();
+</script>
+</body>
+</html>
